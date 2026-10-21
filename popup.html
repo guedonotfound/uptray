@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Uptray</title>
+<style>
+  :root {
+    --bg: #fff; --fg: #1d1d1f; --muted: #6b6b73; --line: #e6e6ea; --tile: #f5f5f7;
+    --accent: #3b5bdb; --warn-bg: #fff4e5; --warn-fg: #8a4b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #232327; --fg: #f2f2f4; --muted: #9a9aa3; --line: #34343a; --tile: #2c2c31;
+      --accent: #7c95ff; --warn-bg: #3a2c14; --warn-fg: #ffc46b; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; width: 300px; background: var(--bg); color: var(--fg);
+    font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  header img { width: 24px; height: 24px; }
+  header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  section { padding: 4px 16px 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row small { display: block; color: var(--muted); font-size: 11px; }
+  .row span { min-width: 0; overflow-wrap: anywhere; }
+  .switch { position: relative; width: 34px; height: 20px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .switch i { position: absolute; inset: 0; border-radius: 10px; background: var(--line); transition: background .15s; pointer-events: none; }
+  .switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .switch input:checked + i { background: var(--accent); }
+  .switch input:checked + i::after { transform: translateX(14px); }
+  .switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+  select { font: inherit; color: inherit; background: var(--tile); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+  .warn { margin: 0 16px 14px; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn-fg); font-size: 12px; }
+  .warn button { all: unset; cursor: pointer; font-weight: 600; text-decoration: underline; }
+  .warn[hidden] { display: none; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="">
+    <h1>Uptray</h1>
+  </header>
+
+  <div class="warn" id="warn" hidden>
+    Sem acesso aos downloads. Ative <b>Permitir acesso a URLs de arquivo</b> nos detalhes da extensão.
+    <button id="openSettings" type="button">Abrir agora</button>
+  </div>
+
+  <section>
+    <label class="row">
+      <span>Ativado</span>
+      <span class="switch"><input type="checkbox" id="enabled"><i></i></span>
+    </label>
+    <label class="row" id="siteRow">
+      <span>Ativo neste site<small id="siteName"></small></span>
+      <span class="switch"><input type="checkbox" id="site"><i></i></span>
+    </label>
+    <label class="row">
+      <span>Mostrar imagem da área de transferência</span>
+      <span class="switch"><input type="checkbox" id="readClipboard"><i></i></span>
+    </label>
+    <label class="row">
+      <span>Downloads exibidos</span>
+      <select id="maxItems">
+        <option>4</option><option>6</option><option>8</option><option>12</option><option>16</option>
+      </select>
+    </label>
+  </section>
+  <script src="popup.js"></script>
+</body>
+</html>

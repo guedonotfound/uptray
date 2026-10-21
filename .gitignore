@@ -1,0 +1,15 @@
+# Build / empacotamento
+*.zip
+*.crx
+*.pem
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# macOS
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
