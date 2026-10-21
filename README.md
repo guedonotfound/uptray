@@ -21,7 +21,7 @@ Precisa de outro arquivo? Um clique em **Procurar no computador…** abre o sele
 - **Respeita o filtro do site** (atributo `accept`): tipos não aceitos aparecem desabilitados.
 - **Tema claro e escuro** automáticos, seguindo o sistema.
 - **Liga/desliga por site** e quantidade de downloads exibidos, pelo ícone da extensão.
-- **Sem nada para mostrar?** O Explorer abre direto, sem passo extra.
+- **Sempre à mão**: o popup abre mesmo sem sugestões (dá para desligar e ir direto ao Explorer nesse caso).
 
 ## Instalação
 
@@ -37,13 +37,13 @@ Precisa de outro arquivo? Um clique em **Procurar no computador…** abre o sele
 
 ## Uso
 
-| Ação | Como |
-| --- | --- |
-| Anexar um download ou a imagem copiada | Clique no item |
-| Anexar vários arquivos | Clique para selecionar e use **Anexar N arquivos** |
-| Colar o que está copiado | `Ctrl+V` com o popup aberto |
-| Abrir o seletor do sistema | **Procurar no computador…** |
-| Fechar sem anexar | `Esc` ou clique fora |
+| Ação                                   | Como                                               |
+| -------------------------------------- | -------------------------------------------------- |
+| Anexar um download ou a imagem copiada | Clique no item                                     |
+| Anexar vários arquivos                 | Clique para selecionar e use **Anexar N arquivos** |
+| Colar o que está copiado               | `Ctrl+V` com o popup aberto                        |
+| Abrir o seletor do sistema             | **Procurar no computador…**                        |
+| Fechar sem anexar                      | `Esc` ou clique fora                               |
 
 ## Como funciona
 

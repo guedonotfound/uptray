@@ -1,7 +1,3 @@
-// Uptray — roda no "MAIN world" (mesmo contexto JS da página).
-// Função: interceptar a abertura do seletor de arquivos e avisar o content script
-// (isolated world), que desenha o popup. Se o content script não responder
-// (extensão desativada, recarregada, site excluído), abre o seletor nativo normalmente.
 (() => {
   if (window.__uptrayInjected) return;
   Object.defineProperty(window, "__uptrayInjected", { value: true });
@@ -75,7 +71,7 @@
         e.stopImmediatePropagation();
       }
     },
-    true
+    true,
   );
 
   // Usuário clicou em "Procurar no computador…" no popup

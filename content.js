@@ -1,5 +1,3 @@
-// Uptray — content script (isolated world).
-// Desenha o popup, lê a área de transferência e pede os downloads ao service worker.
 (() => {
   if (window.__uptrayContent) return;
   window.__uptrayContent = true;
@@ -8,13 +6,22 @@
   const EVT_NATIVE = "uptray:native";
   const EVT_FILES = "uptray:files";
   const EVT_CANCEL = "uptray:cancel";
-  const DEFAULTS = { enabled: true, disabledSites: [], maxItems: 8, readClipboard: true };
+  const DEFAULTS = {
+    enabled: true,
+    disabledSites: [],
+    maxItems: 8,
+    readClipboard: true,
+    alwaysShow: true,
+  };
 
   let settings = { ...DEFAULTS };
   let alive = true;
 
   try {
-    chrome.storage.sync.get(DEFAULTS, (s) => (settings = { ...DEFAULTS, ...s }));
+    chrome.storage.sync.get(
+      DEFAULTS,
+      (s) => (settings = { ...DEFAULTS, ...s }),
+    );
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "sync") return;
       for (const [k, v] of Object.entries(changes)) settings[k] = v.newValue;
@@ -32,7 +39,9 @@
   }
 
   function siteDisabled(host) {
-    return (settings.disabledSites || []).some((s) => host === s || host.endsWith("." + s));
+    return (settings.disabledSites || []).some(
+      (s) => host === s || host.endsWith("." + s),
+    );
   }
 
   function send(msg) {
@@ -50,7 +59,10 @@
   }
 
   // ---------- formatação ----------
-  const rtf = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto", style: "short" });
+  const rtf = new Intl.RelativeTimeFormat("pt-BR", {
+    numeric: "auto",
+    style: "short",
+  });
   function ago(iso) {
     const diff = (new Date(iso).getTime() - Date.now()) / 1000;
     const abs = Math.abs(diff);
@@ -64,7 +76,7 @@
     if (!n) return "";
     const u = ["B", "KB", "MB", "GB"];
     let i = 0;
-    while (n >= 1024 && i < u.length - 1) (n /= 1024), i++;
+    while (n >= 1024 && i < u.length - 1) ((n /= 1024), i++);
     return `${n < 10 && i ? n.toFixed(1).replace(".", ",") : Math.round(n)} ${u[i]}`;
   }
   function extOf(name) {
@@ -73,27 +85,45 @@
   }
 
   const MIME_BY_EXT = {
-    pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-    gif: "image/gif", webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml",
-    txt: "text/plain", csv: "text/csv", json: "application/json", zip: "application/zip",
-    doc: "application/msword", xls: "application/vnd.ms-excel", ppt: "application/vnd.ms-powerpoint",
+    pdf: "application/pdf",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    bmp: "image/bmp",
+    svg: "image/svg+xml",
+    txt: "text/plain",
+    csv: "text/csv",
+    json: "application/json",
+    zip: "application/zip",
+    doc: "application/msword",
+    xls: "application/vnd.ms-excel",
+    ppt: "application/vnd.ms-powerpoint",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    mp4: "video/mp4", mp3: "audio/mpeg", xml: "application/xml",
+    mp4: "video/mp4",
+    mp3: "audio/mpeg",
+    xml: "application/xml",
   };
-  const guessMime = (name, mime) => mime || MIME_BY_EXT[extOf(name)] || "application/octet-stream";
+  const guessMime = (name, mime) =>
+    mime || MIME_BY_EXT[extOf(name)] || "application/octet-stream";
 
   // Verifica se o arquivo combina com o atributo accept do input
   function accepts(accept, name, mime) {
     if (!accept || !accept.trim()) return true;
     const ext = "." + extOf(name);
     mime = guessMime(name, mime).toLowerCase();
-    return accept.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).some((tok) => {
-      if (tok.startsWith(".")) return ext === tok;
-      if (tok.endsWith("/*")) return mime.startsWith(tok.slice(0, -1));
-      return mime === tok;
-    });
+    return accept
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean)
+      .some((tok) => {
+        if (tok.startsWith(".")) return ext === tok;
+        if (tok.endsWith("/*")) return mime.startsWith(tok.slice(0, -1));
+        return mime === tok;
+      });
   }
 
   // ---------- leitura de arquivos ----------
@@ -106,32 +136,47 @@
 
   async function loadDownload(item, onProgress) {
     const meta = await send({ type: "open", id: item.id });
-    if (!meta || !meta.ok) throw new Error((meta && meta.error) || "Falha ao ler o arquivo");
+    if (!meta || !meta.ok)
+      throw new Error((meta && meta.error) || "Falha ao ler o arquivo");
     const parts = [];
     try {
       for (let i = 0; i < meta.chunks; i++) {
         const c = await send({ type: "chunk", token: meta.token, index: i });
-        if (!c || !c.ok) throw new Error((c && c.error) || "Falha ao ler o arquivo");
+        if (!c || !c.ok)
+          throw new Error((c && c.error) || "Falha ao ler o arquivo");
         parts.push(b64ToBytes(c.b64));
         onProgress && onProgress((i + 1) / meta.chunks);
       }
     } finally {
       send({ type: "release", token: meta.token }).catch(() => {});
     }
-    return new File(parts, meta.name, { type: guessMime(meta.name, meta.mime), lastModified: Date.now() });
+    return new File(parts, meta.name, {
+      type: guessMime(meta.name, meta.mime),
+      lastModified: Date.now(),
+    });
   }
 
   async function readClipboardImage() {
-    if (!settings.readClipboard || !navigator.clipboard || !navigator.clipboard.read) return null;
+    if (
+      !settings.readClipboard ||
+      !navigator.clipboard ||
+      !navigator.clipboard.read
+    )
+      return null;
     try {
-      const perm = await navigator.permissions.query({ name: "clipboard-read" }).catch(() => null);
+      const perm = await navigator.permissions
+        .query({ name: "clipboard-read" })
+        .catch(() => null);
       if (perm && perm.state === "denied") return null;
       const items = await navigator.clipboard.read();
       for (const it of items) {
         const type = it.types.find((t) => t.startsWith("image/"));
         if (!type) continue;
         const blob = await it.getType(type);
-        const ext = type.split("/")[1].replace("jpeg", "jpg").replace("svg+xml", "svg");
+        const ext = type
+          .split("/")[1]
+          .replace("jpeg", "jpg")
+          .replace("svg+xml", "svg");
         const d = new Date();
         const pad = (n) => String(n).padStart(2, "0");
         const name = `colado-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.${ext}`;
@@ -230,7 +275,8 @@
     for (const [k, v] of Object.entries(attrs)) {
       if (k === "class") el.className = v;
       else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
-      else if (v !== false && v != null) el.setAttribute(k, v === true ? "" : v);
+      else if (v !== false && v != null)
+        el.setAttribute(k, v === true ? "" : v);
     }
     for (const kid of kids.flat()) if (kid != null) el.append(kid);
     return el;
@@ -244,13 +290,18 @@
     window.removeEventListener("paste", s.onPaste, true);
     s.host.remove();
     for (const u of s.objectUrls) URL.revokeObjectURL(u);
-    if (reason === "cancel") document.dispatchEvent(new CustomEvent(EVT_CANCEL, { detail: { id: s.id } }));
+    if (reason === "cancel")
+      document.dispatchEvent(
+        new CustomEvent(EVT_CANCEL, { detail: { id: s.id } }),
+      );
   }
 
   function deliver(s, files) {
     if (!files.length) return;
     // detail atravessa para o MAIN world por structured clone (File é clonável)
-    document.dispatchEvent(new CustomEvent(EVT_FILES, { detail: { id: s.id, files } }));
+    document.dispatchEvent(
+      new CustomEvent(EVT_FILES, { detail: { id: s.id, files } }),
+    );
     close("done");
   }
 
@@ -268,11 +319,16 @@
   function makeTile({ name, meta, thumbEl, disabled, onPick }) {
     const tile = h(
       "button",
-      { class: "tile", type: "button", title: disabled ? "Tipo não aceito por este campo" : name, "aria-disabled": disabled ? "true" : "false" },
+      {
+        class: "tile",
+        type: "button",
+        title: disabled ? "Tipo não aceito por este campo" : name,
+        "aria-disabled": disabled ? "true" : "false",
+      },
       h("div", { class: "thumb" }, thumbEl, h("span", { class: "check" }, "✓")),
       h("div", { class: "name" }, name),
       h("div", { class: "meta" }, meta),
-      h("div", { class: "bar" }, h("i"))
+      h("div", { class: "bar" }, h("i")),
     );
     tile.addEventListener("click", (e) => {
       e.preventDefault();
@@ -292,7 +348,10 @@
     svg.setAttribute("stroke-width", "1.5");
     svg.setAttribute("stroke-linejoin", "round");
     svg.setAttribute("class", "glyph");
-    for (const d of ["M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z", "M14 3v5h5"]) {
+    for (const d of [
+      "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z",
+      "M14 3v5h5",
+    ]) {
       const p = document.createElementNS(NS, "path");
       p.setAttribute("d", d);
       svg.append(p);
@@ -302,11 +361,14 @@
 
   function iconThumb(item) {
     const frag = document.createDocumentFragment();
-    if (item.thumb && item.thumb.kind === "image") frag.append(h("img", { class: "full", src: item.thumb.src, alt: "" }));
-    else if (item.thumb && item.thumb.src) frag.append(h("img", { class: "icon", src: item.thumb.src, alt: "" }));
+    if (item.thumb && item.thumb.kind === "image")
+      frag.append(h("img", { class: "full", src: item.thumb.src, alt: "" }));
+    else if (item.thumb && item.thumb.src)
+      frag.append(h("img", { class: "icon", src: item.thumb.src, alt: "" }));
     else frag.append(docGlyph());
     const ext = extOf(item.name);
-    if (!(item.thumb && item.thumb.kind === "image") && ext) frag.append(h("span", { class: "ext" }, ext));
+    if (!(item.thumb && item.thumb.kind === "image") && ext)
+      frag.append(h("span", { class: "ext" }, ext));
     return frag;
   }
 
@@ -314,7 +376,10 @@
     tile.classList.add("busy");
     const bar = tile.querySelector(".bar i");
     try {
-      const file = await loadDownload(item, (p) => (bar.style.width = `${Math.round(p * 100)}%`));
+      const file = await loadDownload(
+        item,
+        (p) => (bar.style.width = `${Math.round(p * 100)}%`),
+      );
       return file;
     } catch (err) {
       showError(s, err.message);
@@ -341,8 +406,16 @@
     s.selected = new Map(); // chave -> { tile, get: async () => File }
     s.err = h("div", { class: "err", role: "alert" });
 
-    const attachBtn = h("button", { class: "btn primary", type: "button", hidden: true }, "Anexar");
-    const browseBtn = h("button", { class: "btn", type: "button" }, "Procurar no computador…");
+    const attachBtn = h(
+      "button",
+      { class: "btn primary", type: "button", hidden: true },
+      "Anexar",
+    );
+    const browseBtn = h(
+      "button",
+      { class: "btn", type: "button" },
+      "Procurar no computador…",
+    );
     browseBtn.addEventListener("click", () => openNative(s));
 
     const refreshAttach = () => {
@@ -358,7 +431,10 @@
       const files = [];
       for (const { get } of s.selected.values()) {
         const f = await get();
-        if (!f) { attachBtn.disabled = false; return; }
+        if (!f) {
+          attachBtn.disabled = false;
+          return;
+        }
         files.push(f);
       }
       deliver(s, files);
@@ -370,8 +446,13 @@
         get().then((f) => f && deliver(s, [f]));
         return;
       }
-      if (s.selected.has(key)) { s.selected.delete(key); tile.classList.remove("sel"); }
-      else { s.selected.set(key, { tile, get }); tile.classList.add("sel"); }
+      if (s.selected.has(key)) {
+        s.selected.delete(key);
+        tile.classList.remove("sel");
+      } else {
+        s.selected.set(key, { tile, get });
+        tile.classList.add("sel");
+      }
       refreshAttach();
     };
 
@@ -390,7 +471,15 @@
       clipSection.push(h("div", { class: "grid" }, tile));
     } else {
       clipSection.push(
-        h("div", { class: "hint" }, "Copiou um arquivo ou imagem? Pressione ", h("kbd", {}, "Ctrl"), " + ", h("kbd", {}, "V"), " aqui para anexar.")
+        h(
+          "div",
+          { class: "hint" },
+          "Copiou um arquivo ou imagem? Pressione ",
+          h("kbd", {}, "Ctrl"),
+          " + ",
+          h("kbd", {}, "V"),
+          " aqui para anexar.",
+        ),
       );
     }
 
@@ -403,83 +492,167 @@
         const thumbBox = iconThumb(item);
         const tile = makeTile({
           name: item.name,
-          meta: [fmtSize(item.size), ago(item.endTime)].filter(Boolean).join(" · "),
+          meta: [fmtSize(item.size), ago(item.endTime)]
+            .filter(Boolean)
+            .join(" · "),
           thumbEl: thumbBox,
           disabled: !accepts(s.accept, item.name, item.mime),
-          onPick: (t) => pick("dl:" + item.id, t, () => pickDownload(s, item, t)),
+          onPick: (t) =>
+            pick("dl:" + item.id, t, () => pickDownload(s, item, t)),
         });
         grid.append(tile);
         // miniatura real de imagens chega depois, sem atrasar a abertura
-        if (item.isImage && !(item.thumb && item.thumb.kind === "image") && list.fileAccess) {
-          send({ type: "thumb", id: item.id }).then((res) => {
-            if (!res || !res.ok || !res.thumb) return;
-            const box = tile.querySelector(".thumb");
-            box.querySelectorAll("img, .ext, .glyph").forEach((n) => n.remove());
-            box.prepend(h("img", { class: "full", src: res.thumb.src, alt: "" }));
-          }).catch(() => {});
+        if (
+          item.isImage &&
+          !(item.thumb && item.thumb.kind === "image") &&
+          list.fileAccess
+        ) {
+          send({ type: "thumb", id: item.id })
+            .then((res) => {
+              if (!res || !res.ok || !res.thumb) return;
+              const box = tile.querySelector(".thumb");
+              box
+                .querySelectorAll("img, .ext, .glyph")
+                .forEach((n) => n.remove());
+              box.prepend(
+                h("img", { class: "full", src: res.thumb.src, alt: "" }),
+              );
+            })
+            .catch(() => {});
         }
       }
       dlSection.push(grid);
     } else {
-      dlSection.push(h("div", { class: "hint" }, "Nenhum download recente encontrado."));
+      dlSection.push(
+        h("div", { class: "hint" }, "Nenhum download recente encontrado."),
+      );
     }
     if (list && list.fileAccess === false && items.length) {
-      const btn = h("button", { type: "button" }, "Abrir configurações da extensão");
-      btn.addEventListener("click", () => send({ type: "openSettings" }).catch(() => {}));
+      const btn = h(
+        "button",
+        { type: "button" },
+        "Abrir configurações da extensão",
+      );
+      btn.addEventListener("click", () =>
+        send({ type: "openSettings" }).catch(() => {}),
+      );
       dlSection.push(
-        h("div", { class: "notice" },
-          "Para anexar downloads, ative ", h("b", {}, "Permitir acesso a URLs de arquivo"), " na extensão. ", btn)
+        h(
+          "div",
+          { class: "notice" },
+          "Para anexar downloads, ative ",
+          h("b", {}, "Permitir acesso a URLs de arquivo"),
+          " na extensão. ",
+          btn,
+        ),
       );
     }
 
-    const closeBtn = h("button", { class: "x", type: "button", title: "Fechar (Esc)", "aria-label": "Fechar" }, "✕");
+    const closeBtn = h(
+      "button",
+      {
+        class: "x",
+        type: "button",
+        title: "Fechar (Esc)",
+        "aria-label": "Fechar",
+      },
+      "✕",
+    );
     closeBtn.addEventListener("click", () => close("cancel"));
 
     const card = h(
       "div",
-      { class: "card", role: "dialog", "aria-modal": "true", "aria-label": "Anexar arquivo" },
-      h("header", {}, h("h1", {}, s.multiple ? "Anexar arquivos" : "Anexar arquivo"), closeBtn),
+      {
+        class: "card",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": "Anexar arquivo",
+      },
+      h(
+        "header",
+        {},
+        h("h1", {}, s.multiple ? "Anexar arquivos" : "Anexar arquivo"),
+        closeBtn,
+      ),
       h("div", { class: "body" }, clipSection, dlSection, s.err),
-      h("footer", {},
-        h("span", { class: "tip" }, h("kbd", {}, "Ctrl"), "+", h("kbd", {}, "V"), " cola · ", h("kbd", {}, "Esc"), " fecha"),
-        attachBtn, browseBtn)
+      h(
+        "footer",
+        {},
+        h(
+          "span",
+          { class: "tip" },
+          h("kbd", {}, "Ctrl"),
+          "+",
+          h("kbd", {}, "V"),
+          " cola · ",
+          h("kbd", {}, "Esc"),
+          " fecha",
+        ),
+        attachBtn,
+        browseBtn,
+      ),
     );
 
     const backdrop = h("div", { class: "backdrop" }, card);
-    backdrop.addEventListener("mousedown", (e) => { if (e.target === backdrop) close("cancel"); });
+    backdrop.addEventListener("mousedown", (e) => {
+      if (e.target === backdrop) close("cancel");
+    });
     root.append(backdrop);
 
     // eventos globais enquanto aberto
     s.onKey = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close("cancel"); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close("cancel");
+      }
     };
     s.onPaste = (e) => {
-      const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
+      const files = Array.from(
+        (e.clipboardData && e.clipboardData.files) || [],
+      );
       e.preventDefault();
       e.stopPropagation();
       const ok = files.filter((f) => accepts(s.accept, f.name, f.type));
       if (ok.length) deliver(s, s.multiple ? ok : ok.slice(0, 1));
-      else showError(s, files.length ? "O arquivo colado não é aceito por este campo." : "Não há arquivo nem imagem na área de transferência.");
+      else
+        showError(
+          s,
+          files.length
+            ? "O arquivo colado não é aceito por este campo."
+            : "Não há arquivo nem imagem na área de transferência.",
+        );
     };
     window.addEventListener("keydown", s.onKey, true);
     window.addEventListener("paste", s.onPaste, true);
 
     (document.body || document.documentElement).append(host);
     // foco no primeiro item útil
-    const first = root.querySelector('.tile[aria-disabled="false"]') || browseBtn;
+    const first =
+      root.querySelector('.tile[aria-disabled="false"]') || browseBtn;
     first.focus({ preventScroll: true });
   }
 
   // ---------- entrada ----------
   document.addEventListener(EVT_OPEN, (e) => {
     const d = e.detail || {};
-    if (!extensionAlive() || !settings.enabled || siteDisabled(d.host || location.hostname)) return;
+    if (
+      !extensionAlive() ||
+      !settings.enabled ||
+      siteDisabled(d.host || location.hostname)
+    )
+      return;
 
     // assumimos o controle (inject.js não abre o seletor nativo)
     e.preventDefault();
     if (current) close("cancel");
 
-    const s = { id: d.id, multiple: !!d.multiple, accept: d.accept || "", objectUrls: [] };
+    const s = {
+      id: d.id,
+      multiple: !!d.multiple,
+      accept: d.accept || "",
+      objectUrls: [],
+    };
     current = s;
 
     Promise.all([
@@ -488,10 +661,11 @@
     ]).then(([clip, list]) => {
       if (current !== s) return;
       const nothing = !clip && !(list && list.items && list.items.length);
-      if (nothing) {
-        // nada pra mostrar: vai direto pro Explorer (ainda dentro da janela de ativação do clique)
+      if (nothing && !settings.alwaysShow) {
         current = null;
-        document.dispatchEvent(new CustomEvent(EVT_NATIVE, { detail: { id: s.id } }));
+        document.dispatchEvent(
+          new CustomEvent(EVT_NATIVE, { detail: { id: s.id } }),
+        );
         return;
       }
       render(s, { clip, list });

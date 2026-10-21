@@ -1,8 +1,3 @@
-// Uptray — documento offscreen.
-// Páginas de extensão com "Permitir acesso a URLs de arquivo" conseguem ler file:// via XHR
-// (fetch() não suporta file://). Os bytes vão em pedaços base64 para o content script,
-// porque as mensagens entre contextos só aceitam JSON.
-
 const CHUNK = 4 * 1024 * 1024; // 4 MB por mensagem
 const MAX_SIZE = 500 * 1024 * 1024;
 const store = new Map(); // token -> { buf, timer }
@@ -13,9 +8,15 @@ function readFile(url) {
     xhr.open("GET", url);
     xhr.responseType = "arraybuffer";
     xhr.onload = () =>
-      xhr.response ? resolve(xhr.response) : reject(new Error("Arquivo vazio ou ilegível"));
+      xhr.response
+        ? resolve(xhr.response)
+        : reject(new Error("Arquivo vazio ou ilegível"));
     xhr.onerror = () =>
-      reject(new Error("Sem acesso ao arquivo. Ative \"Permitir acesso a URLs de arquivo\" na extensão."));
+      reject(
+        new Error(
+          'Sem acesso ao arquivo. Ative "Permitir acesso a URLs de arquivo" na extensão.',
+        ),
+      );
     xhr.send();
   });
 }
@@ -59,11 +60,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
       case "open": {
         const buf = await readFile(msg.url);
-        if (buf.byteLength > MAX_SIZE) throw new Error("Arquivo grande demais para o atalho; use \"Procurar no computador\".");
+        if (buf.byteLength > MAX_SIZE)
+          throw new Error(
+            'Arquivo grande demais para o atalho; use "Procurar no computador".',
+          );
         const token = crypto.randomUUID();
         // descarta sozinho se o content script sumir no meio do caminho
-        store.set(token, { buf, timer: setTimeout(() => release(token), 120000) });
-        return { ok: true, token, size: buf.byteLength, chunks: Math.max(1, Math.ceil(buf.byteLength / CHUNK)) };
+        store.set(token, {
+          buf,
+          timer: setTimeout(() => release(token), 120000),
+        });
+        return {
+          ok: true,
+          token,
+          size: buf.byteLength,
+          chunks: Math.max(1, Math.ceil(buf.byteLength / CHUNK)),
+        };
       }
 
       case "chunk": {
@@ -84,7 +96,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
   })()
     .then(sendResponse)
-    .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    .catch((err) =>
+      sendResponse({ ok: false, error: String((err && err.message) || err) }),
+    );
 
   return true;
 });

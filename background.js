@@ -1,8 +1,10 @@
-// Uptray — service worker.
-// Lista os downloads recentes e intermedeia a leitura dos arquivos
-// (feita no documento offscreen, que consegue ler file:// via XHR).
-
-const DEFAULTS = { enabled: true, disabledSites: [], maxItems: 8, readClipboard: true };
+const DEFAULTS = {
+  enabled: true,
+  disabledSites: [],
+  maxItems: 8,
+  readClipboard: true,
+  alwaysShow: true,
+};
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|ico)$/i;
 const THUMB_MAX_BYTES = 25 * 1024 * 1024;
 
@@ -43,9 +45,11 @@ async function toOffscreen(msg) {
 // ---------- utilidades ----------
 function pathToFileUrl(p) {
   const norm = p.replace(/\\/g, "/");
-  const parts = norm.split("/").map((seg, i) =>
-    i === 0 && /^[a-zA-Z]:$/.test(seg) ? seg : encodeURIComponent(seg)
-  );
+  const parts = norm
+    .split("/")
+    .map((seg, i) =>
+      i === 0 && /^[a-zA-Z]:$/.test(seg) ? seg : encodeURIComponent(seg),
+    );
   const joined = parts.join("/");
   if (norm.startsWith("//")) return "file:" + joined; // caminho de rede \\servidor\pasta
   return joined.startsWith("/") ? "file://" + joined : "file:///" + joined;
@@ -86,8 +90,12 @@ async function imageThumb(id) {
   if (!item || !item.exists || !isImageItem(item)) return { ok: false };
   const key = `${item.id}:${item.endTime}`;
   if (imageThumbs.has(key)) return { ok: true, thumb: imageThumbs.get(key) };
-  if (!(item.fileSize > 0 && item.fileSize < THUMB_MAX_BYTES)) return { ok: false };
-  const res = await toOffscreen({ type: "thumb", url: pathToFileUrl(item.filename) });
+  if (!(item.fileSize > 0 && item.fileSize < THUMB_MAX_BYTES))
+    return { ok: false };
+  const res = await toOffscreen({
+    type: "thumb",
+    url: pathToFileUrl(item.filename),
+  });
   if (!res || !res.ok) return { ok: false };
   const thumb = { kind: "image", src: res.dataUrl };
   remember(imageThumbs, key, thumb);
@@ -122,17 +130,32 @@ async function listRecent(max) {
       endTime: it.endTime,
       isImage: isImageItem(it),
       thumb: await quickThumb(it),
-    }))
+    })),
   );
   return { fileAccess, items: result };
 }
 
 async function openFile(id) {
   const [it] = await chrome.downloads.search({ id });
-  if (!it || !it.exists) return { ok: false, error: "Arquivo não encontrado (foi movido ou apagado?)" };
-  const res = await toOffscreen({ type: "open", url: pathToFileUrl(it.filename) });
-  if (!res || !res.ok) return { ok: false, error: (res && res.error) || "Falha ao ler o arquivo" };
-  return { ok: true, token: res.token, chunks: res.chunks, size: res.size, name: baseName(it.filename), mime: it.mime || "" };
+  if (!it || !it.exists)
+    return {
+      ok: false,
+      error: "Arquivo não encontrado (foi movido ou apagado?)",
+    };
+  const res = await toOffscreen({
+    type: "open",
+    url: pathToFileUrl(it.filename),
+  });
+  if (!res || !res.ok)
+    return { ok: false, error: (res && res.error) || "Falha ao ler o arquivo" };
+  return {
+    ok: true,
+    token: res.token,
+    chunks: res.chunks,
+    size: res.size,
+    name: baseName(it.filename),
+    mime: it.mime || "",
+  };
 }
 
 // ---------- mensagens ----------
@@ -143,20 +166,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     list: () => listRecent(Math.min(Math.max(msg.max || 8, 1), 16)),
     open: () => openFile(msg.id),
     thumb: () => imageThumb(msg.id),
-    chunk: () => toOffscreen({ type: "chunk", token: msg.token, index: msg.index }),
+    chunk: () =>
+      toOffscreen({ type: "chunk", token: msg.token, index: msg.index }),
     release: () => toOffscreen({ type: "release", token: msg.token }),
     openSettings: async () => {
-      await chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+      await chrome.tabs.create({
+        url: `chrome://extensions/?id=${chrome.runtime.id}`,
+      });
       return { ok: true };
     },
-    fileAccess: async () => ({ fileAccess: await chrome.extension.isAllowedFileSchemeAccess() }),
+    fileAccess: async () => ({
+      fileAccess: await chrome.extension.isAllowedFileSchemeAccess(),
+    }),
   };
 
   const fn = handlers[msg.type];
   if (!fn) return false;
   fn()
     .then(sendResponse)
-    .catch((err) => sendResponse({ ok: false, error: String((err && err.message) || err) }));
+    .catch((err) =>
+      sendResponse({ ok: false, error: String((err && err.message) || err) }),
+    );
   return true; // resposta assíncrona
 });
 
