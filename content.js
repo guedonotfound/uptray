@@ -270,11 +270,71 @@
   // ---------- UI ----------
   let current = null; // sessão aberta
 
+  // ---------- "firewall" de eventos ----------
+  // Muitos sites fecham modais ao detectar clique, foco ou tecla "fora" deles (ex.: Pipefy).
+  // Como o popup fica fora do modal do site, interceptamos esses eventos na fase de captura
+  // da window (registrada antes dos scripts da página) e o site nunca os vê. Como isso também
+  // impede que cheguem aos nossos elementos, os handlers do popup são chamados por aqui.
+  const handlers = new WeakMap(); // elemento -> { tipo: fn }
+
+  function on(el, type, fn) {
+    const map = handlers.get(el) || {};
+    map[type] = fn;
+    handlers.set(el, map);
+  }
+
+  const FW_TYPES = [
+    "pointerdown",
+    "pointerup",
+    "pointercancel",
+    "mousedown",
+    "mouseup",
+    "click",
+    "dblclick",
+    "auxclick",
+    "contextmenu",
+    "touchstart",
+    "touchend",
+    "touchmove",
+    "wheel",
+    "focusin",
+    "focusout",
+    "keydown",
+    "keyup",
+    "keypress",
+    "paste",
+  ];
+  const PASSIVE = new Set(["touchstart", "touchend", "touchmove", "wheel"]);
+
+  function firewall(e) {
+    const s = current;
+    if (!s || !s.host) return;
+    const path = e.composedPath();
+    const inside = path.includes(s.host) || e.relatedTarget === s.host;
+    const modalOnly = e.type.startsWith("key") || e.type === "paste"; // popup é modal: teclado é nosso
+    if (!inside && !modalOnly) return;
+
+    e.stopImmediatePropagation();
+    if (e.type === "keydown") return s.onKey(e);
+    if (e.type === "paste") return s.onPaste(e);
+    // reproduz o "bubbling" só dentro do nosso popup
+    for (const node of path) {
+      if (node === s.host) break;
+      const fn = handlers.get(node)?.[e.type];
+      if (fn) fn(e, path[0]);
+    }
+  }
+  for (const t of FW_TYPES)
+    window.addEventListener(t, firewall, {
+      capture: true,
+      passive: PASSIVE.has(t),
+    });
+
   function h(tag, attrs = {}, ...kids) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
       if (k === "class") el.className = v;
-      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else if (k.startsWith("on")) on(el, k.slice(2), v);
       else if (v !== false && v != null)
         el.setAttribute(k, v === true ? "" : v);
     }
@@ -286,10 +346,13 @@
     if (!current) return;
     const s = current;
     current = null;
-    window.removeEventListener("keydown", s.onKey, true);
-    window.removeEventListener("paste", s.onPaste, true);
     s.host.remove();
     for (const u of s.objectUrls) URL.revokeObjectURL(u);
+    // devolve o foco para onde estava (ex.: o botão de anexar dentro do modal do site)
+    try {
+      if (s.prevFocus && s.prevFocus.isConnected)
+        s.prevFocus.focus({ preventScroll: true });
+    } catch (_) {}
     if (reason === "cancel")
       document.dispatchEvent(
         new CustomEvent(EVT_CANCEL, { detail: { id: s.id } }),
@@ -330,7 +393,7 @@
       h("div", { class: "meta" }, meta),
       h("div", { class: "bar" }, h("i")),
     );
-    tile.addEventListener("click", (e) => {
+    on(tile, "click", (e) => {
       e.preventDefault();
       if (!disabled && !tile.classList.contains("busy")) onPick(tile, e);
     });
@@ -416,7 +479,7 @@
       { class: "btn", type: "button" },
       "Procurar no computador…",
     );
-    browseBtn.addEventListener("click", () => openNative(s));
+    on(browseBtn, "click", () => openNative(s));
 
     const refreshAttach = () => {
       const n = s.selected.size;
@@ -426,7 +489,7 @@
     };
     browseBtn.classList.add("primary");
 
-    attachBtn.addEventListener("click", async () => {
+    on(attachBtn, "click", async () => {
       attachBtn.disabled = true;
       const files = [];
       for (const { get } of s.selected.values()) {
@@ -533,9 +596,7 @@
         { type: "button" },
         "Abrir configurações da extensão",
       );
-      btn.addEventListener("click", () =>
-        send({ type: "openSettings" }).catch(() => {}),
-      );
+      on(btn, "click", () => send({ type: "openSettings" }).catch(() => {}));
       dlSection.push(
         h(
           "div",
@@ -558,7 +619,7 @@
       },
       "✕",
     );
-    closeBtn.addEventListener("click", () => close("cancel"));
+    on(closeBtn, "click", () => close("cancel"));
 
     const card = h(
       "div",
@@ -594,8 +655,8 @@
     );
 
     const backdrop = h("div", { class: "backdrop" }, card);
-    backdrop.addEventListener("mousedown", (e) => {
-      if (e.target === backdrop) close("cancel");
+    on(backdrop, "mousedown", (_e, inner) => {
+      if (inner === backdrop) close("cancel");
     });
     root.append(backdrop);
 
@@ -623,8 +684,6 @@
             : "Não há arquivo nem imagem na área de transferência.",
         );
     };
-    window.addEventListener("keydown", s.onKey, true);
-    window.addEventListener("paste", s.onPaste, true);
 
     (document.body || document.documentElement).append(host);
     // foco no primeiro item útil
@@ -652,6 +711,7 @@
       multiple: !!d.multiple,
       accept: d.accept || "",
       objectUrls: [],
+      prevFocus: document.activeElement,
     };
     current = s;
 
@@ -662,6 +722,7 @@
       if (current !== s) return;
       const nothing = !clip && !(list && list.items && list.items.length);
       if (nothing && !settings.alwaysShow) {
+        // nada pra mostrar: vai direto pro Explorer (ainda dentro da janela de ativação do clique)
         current = null;
         document.dispatchEvent(
           new CustomEvent(EVT_NATIVE, { detail: { id: s.id } }),
