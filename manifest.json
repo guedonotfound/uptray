@@ -3,6 +3,7 @@
   "name": "Uptray",
   "version": "1.0.0",
   "description": "Ao anexar arquivos, mostra a área de transferência e os downloads recentes antes de abrir o Explorer.",
+  "homepage_url": "https://github.com/guedonotfound/uptray",
   "minimum_chrome_version": "111",
   "icons": {
     "16": "icons/icon16.png",
