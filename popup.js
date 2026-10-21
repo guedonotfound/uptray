@@ -3,6 +3,7 @@ const DEFAULTS = {
   disabledSites: [],
   maxItems: 8,
   readClipboard: true,
+  alwaysShow: true,
 };
 const $ = (id) => document.getElementById(id);
 
@@ -37,9 +38,10 @@ const $ = (id) => document.getElementById(id);
     save({ enabled: e.target.checked }),
   );
   $("readClipboard").addEventListener("change", (e) =>
-    $("alwaysShow").addEventListener("change", (e) =>
-      save({ alwaysShow: e.target.checked }),
-    ),
+    save({ readClipboard: e.target.checked }),
+  );
+  $("alwaysShow").addEventListener("change", (e) =>
+    save({ alwaysShow: e.target.checked }),
   );
   $("maxItems").addEventListener("change", (e) =>
     save({ maxItems: Number(e.target.value) }),
