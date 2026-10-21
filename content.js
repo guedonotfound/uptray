@@ -318,11 +318,29 @@
     if (e.type === "keydown") return s.onKey(e);
     if (e.type === "paste") return s.onPaste(e);
     // reproduz o "bubbling" só dentro do nosso popup
-    for (const node of path) {
-      if (node === s.host) break;
+    const inner = innerPath(s, e);
+    for (const node of inner) {
       const fn = handlers.get(node)?.[e.type];
-      if (fn) fn(e, path[0]);
+      if (fn) fn(e, inner[0]);
     }
+  }
+
+  // O shadow root é "closed" (o site não consegue ler o popup), então composedPath() visto da
+  // window para no host. Descobrimos o alvo real pelo ponto do clique ou pelo elemento focado.
+  function innerPath(s, e) {
+    const root = s.root;
+    if (!root) return [];
+    let el = null;
+    const pointerLike =
+      "clientX" in e && !(e.type === "click" && e.detail === 0); // detail 0 = Enter/Espaço
+    if (pointerLike) el = root.elementFromPoint(e.clientX, e.clientY);
+    if (!el) el = root.activeElement;
+    const path = [];
+    while (el && el !== root) {
+      path.push(el);
+      el = el.parentNode;
+    }
+    return path;
   }
   for (const t of FW_TYPES)
     window.addEventListener(t, firewall, {
@@ -457,6 +475,7 @@
     const host = h("div");
     host.setAttribute("data-uptray", "");
     const root = host.attachShadow({ mode: "closed" });
+    s.root = root;
     try {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(CSS);
